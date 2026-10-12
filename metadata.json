@@ -1,0 +1,6 @@
+{
+  "name": "Sinov — Zamonaviy Mock Test Platformasi",
+  "description": "IELTS, SAT, Milliy Sertifikat va CEFR uchun chuqur tahliliy mock testlar, individual o'quv rejasi, AI yordamchi va o'qituvchi admin paneli.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
