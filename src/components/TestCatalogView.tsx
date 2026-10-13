@@ -34,10 +34,12 @@ import {
   ArrowUpDown,
   ChevronDown,
   Flame,
-  Calendar
+  Calendar,
+  Crown
 } from 'lucide-react';
-import { ExamType, MockTest, SortOption, UserProfile } from '../types';
+import { CustomSubject, ExamType, MockTest, SortOption, UserProfile } from '../types';
 import { getExamLabel } from '../utils/testBuilder';
+import { isUserSubscribed } from '../utils/subscriptionService';
 
 interface TestCatalogViewProps {
   mockTests: MockTest[];
@@ -53,6 +55,8 @@ interface TestCatalogViewProps {
   onOpenAiBookModal: () => void;
   onOpenConfigurator: (examType: ExamType, subject?: string) => void;
   onGoToResults: () => void;
+  onOpenSubscriptionModal?: (targetTitle?: string) => void;
+  customSubjects?: CustomSubject[];
 }
 
 const USER_REVIEWS = [
@@ -123,9 +127,16 @@ export const TestCatalogView: React.FC<TestCatalogViewProps> = ({
   onOpenAiBookModal,
   onOpenConfigurator,
   onGoToResults,
+  onOpenSubscriptionModal,
+  customSubjects = [],
 }) => {
+  const [onlyEasyFilter, setOnlyEasyFilter] = useState(false);
+
   const filteredTests = mockTests.filter((t) => {
     if (selectedCategory !== 'all' && t.examType !== selectedCategory) {
+      return false;
+    }
+    if (onlyEasyFilter && t.difficulty !== 'Oson' && !t.tags?.includes('Yangi kirganlarga')) {
       return false;
     }
     if (subjectFilter && subjectFilter.trim()) {
@@ -212,25 +223,24 @@ export const TestCatalogView: React.FC<TestCatalogViewProps> = ({
     { id: 'cefr', label: 'CEFR Multi-Level', count: mockTests.filter(t => t.examType === 'cefr').length },
   ];
 
+  // Strictly Certificate subjects: Matematika + admin-added custom subjects
   const MILLIY_SUBJECTS = [
-    { title: 'Matematika', desc: 'Algebra, geometriya', icon: Calculator },
-    { title: 'Ingliz tili', desc: 'Grammar, vocabulary', icon: Languages },
-    { title: 'Geografiya', desc: 'Fizik, iqtisodiy', icon: Globe },
-    { title: 'Kimyo', desc: 'Anorganik, organik', icon: FlaskConical },
-    { title: 'Huquqshunoslik', desc: 'Davlat va huquq', icon: Scale },
-    { title: 'Fizika', desc: 'Mexanika, optika', icon: Atom },
-    { title: 'Tarix', desc: "O'zbekiston, jahon", icon: Landmark },
-    { title: 'Biologiya', desc: 'Botanika, zoologiya', icon: BookMarked },
-    { title: "O'zbek tili", desc: 'Grammatika, adabiyot', icon: BookOpen },
+    { title: 'Matematika', desc: 'Algebra, Geometriya, Trigonometriya & DTM Standarti', icon: Calculator },
+    ...(customSubjects || []).filter((s) => s.examType === 'milliy').map((s) => ({
+      title: s.name,
+      desc: s.description,
+      icon: Calculator,
+    })),
   ];
 
+  // Strictly Certificate subjects: CEFR English + admin-added custom subjects
   const CEFR_LANGUAGES = [
-    { title: 'Ingliz tili', desc: 'CEFR B1-C1, Multi-level', icon: Languages },
-    { title: 'Rus tili', desc: 'ТРКИ, grammatika va nutq', icon: Edit3 },
-    { title: 'Turk tili', desc: 'TÖMER, A1-C1 darajalar', icon: Globe },
-    { title: 'Fransuz tili', desc: 'DELF, DALF xalqaro', icon: Award },
-    { title: 'Nemis tili', desc: 'Goethe-Zertifikat, Telc', icon: BookMarked },
-    { title: 'Koreys tili', desc: 'TOPIK 1-2, EPS-TOPIK', icon: Headphones },
+    { title: 'Ingliz tili', desc: 'CEFR B1-C1 Davlat Multi-Level Imtihoni', icon: Languages },
+    ...(customSubjects || []).filter((s) => s.examType === 'cefr').map((s) => ({
+      title: s.name,
+      desc: s.description,
+      icon: Languages,
+    })),
   ];
 
   const SAT_SECTIONS = [
@@ -550,10 +560,10 @@ export const TestCatalogView: React.FC<TestCatalogViewProps> = ({
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                  Milliy Sertifikat Fanlari (9 ta asosiy yo'nalish)
+                  BBA Milliy Sertifikat Fanlari
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Kerakli fanni bosing — test konstruktori shu fanga moslanadi.
+                  Matematika va admin tomonidan kiritilgan rasmiy yo'nalishlar.
                 </p>
               </div>
             </div>
@@ -630,7 +640,7 @@ export const TestCatalogView: React.FC<TestCatalogViewProps> = ({
 
         {/* Category Filters Bar & Sorting Dropdown */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Category Tabs */}
+          {/* Category Tabs & Quick Toggles */}
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 max-w-full">
             {filterTabs.map((tab) => (
               <button
@@ -653,6 +663,28 @@ export const TestCatalogView: React.FC<TestCatalogViewProps> = ({
                 </span>
               </button>
             ))}
+
+            {/* Quick Filter: Yangi kirganlarga oson testlar */}
+            <button
+              onClick={() => setOnlyEasyFilter(!onlyEasyFilter)}
+              className={`px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer shrink-0 ${
+                onlyEasyFilter
+                  ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span>Yangi kirganlarga oson testlar</span>
+            </button>
+
+            {/* Quick Action: Oylik Premium Mock Pass */}
+            <button
+              onClick={() => onOpenSubscriptionModal?.()}
+              className="px-3.5 py-2 rounded-2xl text-xs font-black whitespace-nowrap bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-xs hover:from-amber-600 hover:to-amber-700 flex items-center space-x-1.5 cursor-pointer shrink-0"
+            >
+              <Crown className="w-3.5 h-3.5 fill-current" />
+              <span>Oylik Obuna (Premium Pass)</span>
+            </button>
           </div>
 
           {/* Sorting Dropdown */}
@@ -691,86 +723,107 @@ export const TestCatalogView: React.FC<TestCatalogViewProps> = ({
               </p>
             </div>
           ) : (
-            sortedTests.map((test) => (
-              <div
-                key={test.id}
-                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs hover:border-blue-400 dark:hover:border-blue-600 transition-all flex flex-col justify-between space-y-4"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
-                      {getExamLabel(test.examType)}
-                    </span>
-                    <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{test.durationMinutes} daqiqa</span>
+            sortedTests.map((test) => {
+              const isSubscribed = isUserSubscribed(userProfile);
+              const requiresSub = test.isPremium && !isSubscribed;
+
+              return (
+                <div
+                  key={test.id}
+                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs hover:border-blue-400 dark:hover:border-blue-600 transition-all flex flex-col justify-between space-y-4"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                          {getExamLabel(test.examType)}
+                        </span>
+                        {test.isPremium && (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center space-x-1">
+                            <Crown className="w-3 h-3 text-amber-500 fill-current" />
+                            <span>Premium Mock</span>
+                          </span>
+                        )}
+                        {test.monthYearTag && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300">
+                            {test.monthYearTag}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{test.durationMinutes} daqiqa</span>
+                      </div>
+                    </div>
+
+                    <h4 className="text-base font-bold text-slate-900 dark:text-white leading-snug">
+                      {test.title}
+                    </h4>
+
+                    {test.subject && (
+                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
+                        {test.subject}
+                      </p>
+                    )}
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                      {test.description}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                      <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                        <FileText className="w-3 h-3 text-slate-400" />
+                        <span>{test.totalQuestions || test.questions.length} ta savol</span>
+                      </span>
+
+                      {/* Difficulty Badge */}
+                      <span className={`inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                        test.difficulty === 'Oson'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : test.difficulty === 'O\'rta'
+                          ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                          : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                      }`}>
+                        <Layers className="w-3 h-3 opacity-70" />
+                        <span>{test.difficulty}</span>
+                      </span>
+
+                      {/* Popularity Badge */}
+                      {test.attemptsCount ? (
+                        <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-800/60 px-2.5 py-1 rounded-lg">
+                          <Flame className="w-3 h-3 text-orange-500" />
+                          <span>{test.attemptsCount >= 1000 ? `${(test.attemptsCount / 1000).toFixed(1)}k` : test.attemptsCount} topshirilgan</span>
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white leading-snug">
-                    {test.title}
-                  </h4>
-
-                  {test.subject && (
-                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
-                      {test.subject}
-                    </p>
-                  )}
-
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                    {test.description}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
-                    <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
-                      <FileText className="w-3 h-3 text-slate-400" />
-                      <span>{test.totalQuestions || test.questions.length} ta savol</span>
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400">
+                      {test.isPremium ? "Haqiqiy imtihon mezonlari" : "Avto-tekshiruv bilan"}
                     </span>
-
-                    {/* Difficulty Badge */}
-                    <span className={`inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
-                      test.difficulty === 'Oson'
-                        ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                        : test.difficulty === 'O\'rta'
-                        ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                        : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
-                    }`}>
-                      <Layers className="w-3 h-3 opacity-70" />
-                      <span>{test.difficulty}</span>
-                    </span>
-
-                    {/* Popularity Badge */}
-                    {test.attemptsCount ? (
-                      <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-800/60 px-2.5 py-1 rounded-lg">
-                        <Flame className="w-3 h-3 text-orange-500" />
-                        <span>{test.attemptsCount >= 1000 ? `${(test.attemptsCount / 1000).toFixed(1)}k` : test.attemptsCount} topshirilgan</span>
-                      </span>
-                    ) : null}
-
-                    {/* Created Date Badge */}
-                    {test.createdAt ? (
-                      <span className="inline-flex items-center space-x-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
-                        <Calendar className="w-3 h-3 text-slate-400" />
-                        <span>{test.createdAt}</span>
-                      </span>
-                    ) : null}
+                    {requiresSub ? (
+                      <button
+                        onClick={() => onOpenSubscriptionModal?.(test.title)}
+                        className="px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white flex items-center space-x-1.5 shadow-md shadow-amber-500/20 cursor-pointer transition-all"
+                      >
+                        <Crown className="w-3.5 h-3.5 fill-current" />
+                        <span>Obunani ochish (Mock Pass)</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onStartTest(test.id)}
+                        className="px-5 py-2.5 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white flex items-center space-x-1.5 shadow-xs cursor-pointer transition-colors"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                        <span>Sinovni Boshlash</span>
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">
-                    Avto-tekshiruv bilan
-                  </span>
-                  <button
-                    onClick={() => onStartTest(test.id)}
-                    className="px-5 py-2.5 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white flex items-center space-x-1.5 shadow-xs cursor-pointer transition-colors"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-white" />
-                    <span>Sinovni Boshlash</span>
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </section>

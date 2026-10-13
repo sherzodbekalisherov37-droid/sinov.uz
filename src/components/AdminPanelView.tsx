@@ -24,10 +24,15 @@ import {
   HelpCircle,
   ExternalLink,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Crown,
+  RefreshCw,
+  Calculator,
+  Languages
 } from 'lucide-react';
-import { ExamType, MockTest, Question, QuestionType, UserProfile, UserRole, UserTestResult } from '../types';
+import { CustomSubject, ExamType, MockTest, Question, QuestionType, UserProfile, UserRole, UserTestResult } from '../types';
 import { getExamLabel } from '../utils/testBuilder';
+import { CURRENT_MONTH_TAG, NEXT_REFRESH_DATE } from '../utils/monthlyMockEngine';
 
 interface AdminPanelViewProps {
   mockTests: MockTest[];
@@ -43,6 +48,11 @@ interface AdminPanelViewProps {
   onChangeUserRole: (role: UserRole) => void;
   onBackToStudentView: () => void;
   onOpenAiBookModal: () => void;
+  customSubjects?: CustomSubject[];
+  onAddCustomSubject?: (subj: CustomSubject) => void;
+  onDeleteCustomSubject?: (id: string) => void;
+  onToggleTestPremium?: (testId: string) => void;
+  onForceRefreshMonthly?: () => void;
 }
 
 export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
@@ -59,9 +69,32 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onChangeUserRole,
   onBackToStudentView,
   onOpenAiBookModal,
+  customSubjects = [],
+  onAddCustomSubject,
+  onDeleteCustomSubject,
+  onToggleTestPremium,
+  onForceRefreshMonthly,
 }) => {
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'questions' | 'tests' | 'students' | 'sources'>('dashboard');
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'questions' | 'tests' | 'subjects' | 'students' | 'sources'>('dashboard');
   
+  // New Subject Modal
+  const [showNewSubjectModal, setShowNewSubjectModal] = useState(false);
+  const [newSubjName, setNewSubjName] = useState('');
+  const [newSubjExamType, setNewSubjExamType] = useState<ExamType>('milliy');
+  const [newSubjDesc, setNewSubjDesc] = useState('');
+
+  // Real Mock Test Creation Modal
+  const [showRealMockModal, setShowRealMockModal] = useState(false);
+  const [newMockTitle, setNewMockTitle] = useState('');
+  const [newMockExamType, setNewMockExamType] = useState<ExamType>('sat');
+  const [newMockSubject, setNewMockSubject] = useState('SAT English');
+  const [newMockYearTag, setNewMockYearTag] = useState('2025 Oktyabr');
+  const [newMockDuration, setNewMockDuration] = useState(45);
+  const [newMockIsPremium, setNewMockIsPremium] = useState(true);
+  const [newMockDifficulty, setNewMockDifficulty] = useState<'Oson' | 'O\'rta' | 'Murakkab'>('Murakkab');
+  const [newMockDescription, setNewMockDescription] = useState('Haqiqiy oldingi tushgan rasmiy mock test varianti.');
+  const [monthlySyncMessage, setMonthlySyncMessage] = useState<string | null>(null);
+
   // Question Bank search & filter
   const [qbSearch, setQbSearch] = useState('');
   const [qbExamFilter, setQbExamFilter] = useState<string>('all');
@@ -198,6 +231,72 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     downloadAnchor.remove();
   };
 
+  // Real Mock Test submission
+  const handleSaveRealMock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMockTitle.trim()) return;
+
+    const matchingQuestions = questionBank.filter(
+      (q) => q.examType === newMockExamType && (newMockSubject ? q.subject?.toLowerCase().includes(newMockSubject.toLowerCase()) : true)
+    );
+    const selectedQuestions = matchingQuestions.length >= 5
+      ? matchingQuestions.slice(0, 15)
+      : questionBank.filter((q) => q.examType === newMockExamType).slice(0, 15);
+
+    const fallbackQuestions = selectedQuestions.length > 0 ? selectedQuestions : questionBank.slice(0, 10);
+
+    const newTest: MockTest = {
+      id: `real_mock_${Date.now()}`,
+      title: newMockTitle,
+      examType: newMockExamType,
+      subject: newMockSubject,
+      description: newMockDescription,
+      durationMinutes: Number(newMockDuration) || 45,
+      totalQuestions: fallbackQuestions.length,
+      questions: fallbackQuestions,
+      difficulty: newMockDifficulty,
+      tags: ['Haqiqiy tushgan', newMockYearTag, 'Rasmiy Mock', newMockIsPremium ? 'Premium' : 'Bepul'],
+      author: 'Admin (Haqiqiy Imtihon Bazasi)',
+      isOfficial: true,
+      isPremium: newMockIsPremium,
+      priceMonth: newMockIsPremium ? 49000 : 0,
+      monthYearTag: newMockYearTag,
+      createdAt: new Date().toISOString(),
+      popularity: 1200,
+      attemptsCount: 340,
+    };
+
+    onAddMockTest(newTest);
+    setShowRealMockModal(false);
+    setNewMockTitle('');
+  };
+
+  // Custom Subject submission
+  const handleSaveCustomSubject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubjName.trim()) return;
+
+    const newSubj: CustomSubject = {
+      id: `subj_${Date.now()}`,
+      name: newSubjName.trim(),
+      examType: newSubjExamType,
+      description: newSubjDesc.trim() || 'Admin tomonidan kiritilgan yangi sertifikat fani.',
+      createdAt: new Date().toISOString(),
+      createdBy: 'Admin',
+    };
+
+    onAddCustomSubject?.(newSubj);
+    setShowNewSubjectModal(false);
+    setNewSubjName('');
+    setNewSubjDesc('');
+  };
+
+  const handleForceMonthlyRefreshClick = () => {
+    onForceRefreshMonthly?.();
+    setMonthlySyncMessage(`Muvaffaqiyatli! ${CURRENT_MONTH_TAG} yangi eksklyuziv mock to'plami yangilandi va barcha foydalanuvchilar katalogiga qo'shildi.`);
+    setTimeout(() => setMonthlySyncMessage(null), 4000);
+  };
+
   return (
     <div className="space-y-8 animate-fade-in font-sans">
       {/* Top Admin Header Bar */}
@@ -211,7 +310,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             Sinov Test Platformasi Admin Paneli
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Savollar banki, test konstruktori, foydalanuvchilar tahlili va rasmiy manbalar nazorati.
+            Savollar banki, haqiqiy mock testlar, oylik obuna tizimi va fanlar boshqaruvi.
           </p>
         </div>
 
@@ -250,7 +349,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         {[
           { id: 'dashboard', label: 'Boshqaruv Paneli (Stats)', icon: BarChart3 },
           { id: 'questions', label: `Savollar Bazasi (${questionBank.length})`, icon: Database },
-          { id: 'tests', label: `Testlar To'plami (${mockTests.length})`, icon: Layers },
+          { id: 'tests', label: `Mock Testlar (${mockTests.length})`, icon: Layers },
+          { id: 'subjects', label: `Fanlar Boshqaruvi (${4 + (customSubjects?.length || 0)})`, icon: Calculator },
           { id: 'students', label: `O'quvchilar (${students.length})`, icon: Users },
           { id: 'sources', label: 'Rasmiy Manbalar', icon: BookOpen },
         ].map((tab) => {
@@ -508,31 +608,115 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
       {/* 3. TESTS TAB */}
       {adminTab === 'tests' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-900 dark:text-white">
-              Platformadagi Barcha Test Variantlari
-            </h3>
+        <div className="space-y-6">
+          {/* Monthly Auto-Refresh Status Banner */}
+          <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-3xl p-6 shadow-md border border-blue-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                  Oylik Avto-Yangilanish Tizimi: FAOL (Active)
+                </span>
+              </div>
+              <h4 className="text-lg font-black tracking-tight">
+                Har Oy Mock Testlar Avtomatik Yangilanadi
+              </h4>
+              <p className="text-xs text-blue-200 max-w-xl">
+                Siz yangi test qo'shmasangiz ham, har oy 1-sanasida platforma 4 ta fan (Matematika, SAT English, IELTS, CEFR) bo'yicha yangi rasmiy to'plam bilan avtomatik boyitiladi.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 pt-2 text-[11px] text-blue-200 font-mono">
+                <span className="bg-blue-800/80 px-2.5 py-1 rounded-xl border border-blue-600/40">
+                  Joriy to'plam: <strong>{CURRENT_MONTH_TAG}</strong>
+                </span>
+                <span className="bg-blue-800/80 px-2.5 py-1 rounded-xl border border-blue-600/40">
+                  Keyingi avto-yangilanish: <strong>{NEXT_REFRESH_DATE}</strong>
+                </span>
+              </div>
+            </div>
+
             <button
-              onClick={onOpenAiBookModal}
-              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs inline-flex items-center space-x-1.5 cursor-pointer"
+              type="button"
+              onClick={handleForceMonthlyRefreshClick}
+              className="px-4 py-2.5 rounded-2xl bg-white hover:bg-blue-50 text-blue-900 font-black text-xs inline-flex items-center space-x-1.5 shadow-md transition-all cursor-pointer shrink-0"
             >
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>+ Yangi Test Yaratish</span>
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Oylik Mocklarni Yangilash</span>
             </button>
           </div>
 
+          {monthlySyncMessage && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-bold flex items-center space-x-2 animate-fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <span>{monthlySyncMessage}</span>
+            </div>
+          )}
+
+          {/* Actions Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                Platformadagi Barcha Mock Testlar ({mockTests.length} ta)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Haqiqiy oldingi tushgan mocklarni kiritish va Premium obunani boshqarish.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowRealMockModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs inline-flex items-center space-x-1.5 shadow-md cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Haqiqiy Tushgan Mock Qo'shish</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenAiBookModal}
+                className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs inline-flex items-center space-x-1.5 shadow-md cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Kitob/PDF dan Mock Tuzish</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Test Cards List */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {mockTests.map((t) => (
               <div
                 key={t.id}
-                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between space-y-4"
+                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all"
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase">
-                      {t.examType}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase">
+                        {t.examType}
+                      </span>
+                      {t.monthYearTag && (
+                        <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
+                          {t.monthYearTag}
+                        </span>
+                      )}
+                      {/* Premium Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => onToggleTestPremium?.(t.id)}
+                        className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase inline-flex items-center space-x-1 cursor-pointer transition-colors ${
+                          t.isPremium
+                            ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                        }`}
+                        title="Bosib Premium yoki Bepul holatiga o'tkazing"
+                      >
+                        <Crown className="w-3 h-3 text-amber-500 fill-current" />
+                        <span>{t.isPremium ? 'Premium (Obunali)' : 'Bepul Mock'}</span>
+                      </button>
+                    </div>
+
                     <button
                       onClick={() => onDeleteMockTest(t.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
@@ -541,8 +725,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white">{t.title}</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t.description}</p>
+
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white leading-snug">
+                    {t.title}
+                  </h4>
+                  {t.subject && (
+                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                      {t.subject}
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                    {t.description}
+                  </p>
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
@@ -556,7 +750,99 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         </div>
       )}
 
-      {/* 4. STUDENTS TAB */}
+      {/* 4. FANLAR BOSHQARUVI TAB (SUBJECTS MANAGEMENT) */}
+      {adminTab === 'subjects' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+            <div>
+              <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400 text-xs font-black uppercase tracking-wider mb-1">
+                <Calculator className="w-4 h-4" />
+                <span>Fanlar Boshqaruvi (Subjects Directory)</span>
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                Sertifikat Fanlari & Yangi Fan Qo'shish
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Faqat sertifikatga tayyorlaydigan 4 ta asosiy fan qoldirilgan. Yangi fan qo'shmoqchi bo'lsangiz, shu yerdan kiritishingiz mumkin.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowNewSubjectModal(true)}
+              className="px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs inline-flex items-center space-x-2 shadow-md cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Yangi Fan Qo'shish</span>
+            </button>
+          </div>
+
+          {/* Official Core 4 Subjects */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Asosiy Sertifikat Fanlari (Doimiy Faol)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { name: 'Matematika', scope: 'SAT Math & Milliy Matematika Sertifikati', icon: Calculator, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/50' },
+                { name: 'SAT English', scope: 'Digital SAT Reading & Writing (College Board & Erica Meltzer)', icon: BookOpen, color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/50' },
+                { name: 'IELTS Academic', scope: 'Listening, Academic Reading, Writing & Speaking', icon: Award, color: 'text-rose-500 bg-rose-50 dark:bg-rose-950/50' },
+                { name: 'CEFR English', scope: 'Davlat Multi-Level B1, B2, C1 Imtihoni', icon: Languages, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/50' },
+              ].map((subj, idx) => (
+                <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${subj.color}`}>
+                      <subj.icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                      Asosiy Fan
+                    </span>
+                  </div>
+                  <h5 className="text-sm font-bold text-slate-900 dark:text-white">{subj.name}</h5>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">{subj.scope}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Admin Added Custom Subjects */}
+          <div className="space-y-3 pt-4">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Admin Qo'shgan Maxsus Fanlar ({customSubjects.length} ta)
+            </h4>
+            {customSubjects.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 text-center text-xs text-slate-500 space-y-2">
+                <p>Hozircha admin tomonidan qo'shimcha fanlar qo'shilmagan.</p>
+                <p className="text-[11px] text-slate-400">Yangi fan qo'shmoqchi bo'lsangiz, yuqoridagi "+ Yangi Fan Qo'shish" tugmasidan foydalaning.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {customSubjects.map((s) => (
+                  <div key={s.id} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-start justify-between">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                        {s.examType.toUpperCase()}
+                      </span>
+                      <h5 className="text-sm font-bold text-slate-900 dark:text-white">{s.name}</h5>
+                      <p className="text-xs text-slate-500">{s.description}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCustomSubject?.(s.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                      title="Fanni o'chirish"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. STUDENTS TAB */}
       {adminTab === 'students' && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4">
           <h3 className="text-sm font-black text-slate-900 dark:text-white">
@@ -913,6 +1199,268 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 Importni Tasdiqlash
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW REAL MOCK CREATION MODAL */}
+      {showRealMockModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Haqiqiy Oldingi Tushgan Mock Test Qo'shish
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Avvalgi yillarda yoki sessiyalarda tushgan haqiqiy imtihon variantini tizimga kiritish.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRealMockModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRealMock} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Test Sarlavhasi *
+                </label>
+                <input
+                  type="text"
+                  value={newMockTitle}
+                  onChange={(e) => setNewMockTitle(e.target.value)}
+                  placeholder="Masalan: 2025 Oktyabr SAT Digital Haqiqiy Tushgan Mock"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Imtihon turi
+                  </label>
+                  <select
+                    value={newMockExamType}
+                    onChange={(e) => {
+                      const ex = e.target.value as ExamType;
+                      setNewMockExamType(ex);
+                      if (ex === 'sat') setNewMockSubject('SAT English');
+                      else if (ex === 'milliy') setNewMockSubject('Matematika');
+                      else if (ex === 'ielts') setNewMockSubject('IELTS Academic');
+                      else if (ex === 'cefr') setNewMockSubject('CEFR English');
+                    }}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                  >
+                    <option value="sat">Digital SAT</option>
+                    <option value="milliy">Milliy Matematika</option>
+                    <option value="ielts">IELTS Academic</option>
+                    <option value="cefr">CEFR Multi-Level</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Fan / Bo'lim
+                  </label>
+                  <input
+                    type="text"
+                    value={newMockSubject}
+                    onChange={(e) => setNewMockSubject(e.target.value)}
+                    placeholder="Matematika, SAT English..."
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Tushgan davri / Yili
+                  </label>
+                  <input
+                    type="text"
+                    value={newMockYearTag}
+                    onChange={(e) => setNewMockYearTag(e.target.value)}
+                    placeholder="2025 Oktyabr"
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Vaqt (daqiqa)
+                  </label>
+                  <input
+                    type="number"
+                    value={newMockDuration}
+                    onChange={(e) => setNewMockDuration(Number(e.target.value))}
+                    min={10}
+                    max={180}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Qiyinchilik
+                  </label>
+                  <select
+                    value={newMockDifficulty}
+                    onChange={(e) => setNewMockDifficulty(e.target.value as any)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                  >
+                    <option value="Oson">Oson (Starter)</option>
+                    <option value="O'rta">O'rta (Standard)</option>
+                    <option value="Murakkab">Murakkab (Real Exam)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Premium toggle checkbox */}
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Crown className="w-4 h-4 text-amber-500 fill-current" />
+                  <div>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                      Premium Mock sifatida belgilash
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      O'quvchi bu mockni ishlashi uchun oylik obunani sotib olgan bo'lishi kerak.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  id="realMockPremium"
+                  checked={newMockIsPremium}
+                  onChange={(e) => setNewMockIsPremium(e.target.checked)}
+                  className="w-4 h-4 rounded-sm text-amber-600 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Tavsif
+                </label>
+                <textarea
+                  rows={2}
+                  value={newMockDescription}
+                  onChange={(e) => setNewMockDescription(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowRealMockModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold cursor-pointer"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-md cursor-pointer"
+                >
+                  Mock Testni Saqlash
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* NEW CUSTOM SUBJECT CREATION MODAL */}
+      {showNewSubjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Yangi Sertifikat Fani Qo'shish
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Fanni qo'shgach, unga testlar va savollarni bevosita biriktirishingiz mumkin.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewSubjectModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomSubject} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Fan Nomi *
+                </label>
+                <input
+                  type="text"
+                  value={newSubjName}
+                  onChange={(e) => setNewSubjName(e.target.value)}
+                  placeholder="Masalan: Fizika, Kimyo, Biologiya..."
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Tegishli Imtihon Toifasi
+                </label>
+                <select
+                  value={newSubjExamType}
+                  onChange={(e) => setNewSubjExamType(e.target.value as ExamType)}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                >
+                  <option value="milliy">Milliy Sertifikat (BBA)</option>
+                  <option value="sat">SAT Suite</option>
+                  <option value="ielts">IELTS Academic</option>
+                  <option value="cefr">CEFR Multi-Level</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Fan Tavsifi
+                </label>
+                <textarea
+                  rows={2}
+                  value={newSubjDesc}
+                  onChange={(e) => setNewSubjDesc(e.target.value)}
+                  placeholder="Mavzular va baholash mezonlari haqida..."
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowNewSubjectModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold cursor-pointer"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-md cursor-pointer"
+                >
+                  Fanni Saqlash
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

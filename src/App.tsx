@@ -11,8 +11,10 @@ import { ExamConfiguratorModal } from './components/ExamConfiguratorModal';
 import { AiMentorDrawer } from './components/AiMentorDrawer';
 import { OnboardingModal } from './components/OnboardingModal';
 import { AiBookTestModal } from './components/AiBookTestModal';
+import { PremiumSubscriptionModal } from './components/PremiumSubscriptionModal';
 
 import { 
+  CustomSubject,
   ExamConfig,
   ExamType, 
   MistakeItem, 
@@ -29,6 +31,7 @@ import { DEFAULT_USER_PROFILE, INITIAL_STUDENTS_LIST, INITIAL_TEST_RESULTS } fro
 import { calculateTestResult, generateStudyPlan } from './utils/scoring';
 import { buildConfiguredTest } from './utils/testBuilder';
 import { triggerConfetti } from './utils/confetti';
+import { syncMonthlyAndBeginnerTests } from './utils/monthlyMockEngine';
 
 export const App: React.FC = () => {
   // Theme state: dark / light
@@ -111,15 +114,16 @@ export const App: React.FC = () => {
   const [mockTests, setMockTests] = useState<MockTest[]>(() => {
     try {
       const saved = localStorage.getItem('sinov_mock_tests');
+      let base = INITIAL_MOCK_TESTS;
       if (saved) {
         const parsed: MockTest[] = JSON.parse(saved);
         const existingIds = new Set(parsed.map((t) => t.id));
         const missing = INITIAL_MOCK_TESTS.filter((t) => !existingIds.has(t.id));
-        return [...parsed, ...missing];
+        base = [...parsed, ...missing];
       }
-      return INITIAL_MOCK_TESTS;
+      return syncMonthlyAndBeginnerTests(base);
     } catch {
-      return INITIAL_MOCK_TESTS;
+      return syncMonthlyAndBeginnerTests(INITIAL_MOCK_TESTS);
     }
   });
 
@@ -130,6 +134,50 @@ export const App: React.FC = () => {
       console.warn(e);
     }
   }, [mockTests]);
+
+  // Custom Subjects added by Admin
+  const [customSubjects, setCustomSubjects] = useState<CustomSubject[]>(() => {
+    try {
+      const saved = localStorage.getItem('sinov_custom_subjects');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sinov_custom_subjects', JSON.stringify(customSubjects));
+    } catch (e) {
+      console.warn(e);
+    }
+  }, [customSubjects]);
+
+  const handleAddCustomSubject = (newSubj: CustomSubject) => {
+    setCustomSubjects((prev) => [newSubj, ...prev]);
+  };
+
+  const handleDeleteCustomSubject = (id: string) => {
+    setCustomSubjects((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleToggleTestPremium = (testId: string) => {
+    setMockTests((prev) =>
+      prev.map((t) => (t.id === testId ? { ...t, isPremium: !t.isPremium } : t))
+    );
+  };
+
+  const handleForceRefreshMonthly = () => {
+    setMockTests((prev) => syncMonthlyAndBeginnerTests(prev));
+  };
+
+  // Premium Subscription Modal State
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [subscriptionTargetTitle, setSubscriptionTargetTitle] = useState<string | undefined>(undefined);
+
+  const handleOpenSubscriptionModal = (title?: string) => {
+    setSubscriptionTargetTitle(title);
+    setIsSubscriptionModalOpen(true);
+  };
 
   // Mistakes Bank
   const [userMistakes, setUserMistakes] = useState<MistakeItem[]>(() => {
@@ -402,6 +450,7 @@ export const App: React.FC = () => {
             theme={theme}
             onToggleTheme={toggleTheme}
             onOpenConfigurator={handleOpenConfigurator}
+            onOpenSubscriptionModal={() => handleOpenSubscriptionModal()}
           />
 
           {/* Main Content Area */}
@@ -473,6 +522,8 @@ export const App: React.FC = () => {
                     onOpenAiBookModal={() => setIsAiBookModalOpen(true)}
                     onOpenConfigurator={handleOpenConfigurator}
                     onGoToResults={() => setActiveTab('analytics')}
+                    onOpenSubscriptionModal={handleOpenSubscriptionModal}
+                    customSubjects={customSubjects}
                   />
                 )}
 
@@ -531,6 +582,11 @@ export const App: React.FC = () => {
                       setActiveTab('catalog');
                     }}
                     onOpenAiBookModal={() => setIsAiBookModalOpen(true)}
+                    customSubjects={customSubjects}
+                    onAddCustomSubject={handleAddCustomSubject}
+                    onDeleteCustomSubject={handleDeleteCustomSubject}
+                    onToggleTestPremium={handleToggleTestPremium}
+                    onForceRefreshMonthly={handleForceRefreshMonthly}
                   />
                 )}
               </>
@@ -597,6 +653,17 @@ export const App: React.FC = () => {
         activeQuestionContext={aiContext}
         onClearQuestionContext={() => setAiContext(undefined)}
         userProfile={userProfile}
+      />
+
+      {/* Premium Subscription Modal */}
+      <PremiumSubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        userProfile={userProfile}
+        targetTestTitle={subscriptionTargetTitle}
+        onSubscriptionSuccess={(updatedProfile) => {
+          setUserProfile(updatedProfile);
+        }}
       />
     </div>
   );

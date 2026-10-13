@@ -29,7 +29,8 @@ import {
   Sun,
   Moon,
   AlertTriangle,
-  Search
+  Search,
+  Crown
 } from 'lucide-react';
 import { ExamType, UserProfile, UserRole } from '../types';
 
@@ -49,6 +50,7 @@ interface HeaderProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenConfigurator: (examType: ExamType) => void;
+  onOpenSubscriptionModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -67,6 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
   onOpenConfigurator,
+  onOpenSubscriptionModal,
 }) => {
   const [openDropdown, setOpenDropdown] = useState<ExamType | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -208,6 +211,20 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Tools & User Actions */}
           <div className="flex items-center space-x-2.5">
+            {/* Premium Mock Pass status / purchase button */}
+            <button
+              onClick={onOpenSubscriptionModal}
+              className={`hidden sm:inline-flex items-center space-x-1.5 px-3 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                userProfile.isPremium
+                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-xs hover:from-amber-600 hover:to-amber-700'
+              }`}
+              title="Oylik mock obunasi"
+            >
+              <Crown className="w-3.5 h-3.5 fill-current text-amber-400" />
+              <span>{userProfile.isPremium ? 'Premium Pass Faol' : 'Obuna (Mock Pass)'}</span>
+            </button>
+
             {/* Dark / Light Mode Toggle */}
             <button
               onClick={onToggleTheme}

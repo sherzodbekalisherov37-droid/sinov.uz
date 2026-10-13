@@ -48,17 +48,29 @@ export const ExamConfiguratorModal: React.FC<ExamConfiguratorModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  // Subjects for Milliy Sertifikat
+  // Custom subjects added by admin from Admin Panel
+  const customSubjectsList: { id: string; label: string; icon: any; color: string }[] = (() => {
+    try {
+      const saved = localStorage.getItem('sinov_custom_subjects');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((s: any) => s.examType === 'milliy').map((s: any) => ({
+            id: s.name,
+            label: s.name,
+            icon: Calculator,
+            color: 'text-indigo-500',
+          }));
+        }
+      }
+    } catch {}
+    return [];
+  })();
+
+  // Certificate subjects strictly: Matematika (+ admin-added custom subjects)
   const milliySubjects = [
-    { id: 'Matematika', label: 'Matematika', icon: Calculator, color: 'text-blue-500' },
-    { id: 'Ona tili va adabiyot', label: 'Ona tili va adabiyot', icon: BookOpen, color: 'text-indigo-500' },
-    { id: 'Fizika', label: 'Fizika', icon: Atom, color: 'text-amber-500' },
-    { id: 'Kimyo', label: 'Kimyo', icon: Flame, color: 'text-rose-500' },
-    { id: 'Biologiya', label: 'Biologiya', icon: Compass, color: 'text-emerald-500' },
-    { id: 'Tarix', label: 'Tarix', icon: Award, color: 'text-purple-500' },
-    { id: 'Geografiya', label: 'Geografiya', icon: Globe, color: 'text-teal-500' },
-    { id: 'Huquqshunoslik', label: 'Huquqshunoslik', icon: Scale, color: 'text-sky-500' },
-    { id: 'Ingliz tili', label: 'Ingliz tili', icon: Globe, color: 'text-cyan-500' },
+    { id: 'Matematika', label: 'Matematika (Milliy Sertifikat)', icon: Calculator, color: 'text-blue-500' },
+    ...customSubjectsList,
   ];
 
   // SAT Sections & Domains
